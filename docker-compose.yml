@@ -18,6 +18,8 @@ x-airflow-common: &airflow-common
     TRACKER_SQL_DIR: ${TRACKER_SQL_DIR:-/opt/airflow/sql}
     TRACKER_ASSET_SCHEMA: ${TRACKER_ASSET_SCHEMA:-public}
     TRACKER_RAW_AI_EVENTS_TABLE: ${TRACKER_RAW_AI_EVENTS_TABLE:-raw_events}
+    OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+    OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
 
   volumes:
     - ./dags:/opt/airflow/dags
@@ -151,5 +153,24 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  ollama-init:
+    image: curlimages/curl:latest
+    command:
+      - sh
+      - -c
+      - "until curl -s -f -X POST http://ollama:11434/api/pull -d '{\"name\": \"${OLLAMA_EMBED_MODEL:-nomic-embed-text}\"}'; do sleep 5; done"
+    depends_on:
+      - ollama
+    restart: "no"
+
 volumes:
   pgdata:
+  ollama:

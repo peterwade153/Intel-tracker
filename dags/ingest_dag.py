@@ -5,7 +5,7 @@ import pendulum
 from airflow.sdk import Asset, dag, task
 
 from tracker.ingest import ALL_PHASE1_SOURCES, run_source_ingestion
-
+from tracker.pipeline.enrich import run_enrichment
 
 postgres_host = os.getenv("POSTGRES_HOST", "postgres")
 postgres_db = os.getenv("POSTGRES_DB", "ai_tracker")
@@ -16,6 +16,10 @@ dag_start_date = os.getenv("AI_TRACKER_DAG_START_DATE", "2026-11-01T00:00:00+00:
 
 RAW_AI_EVENTS_ASSET = Asset(
     f"postgres://{postgres_host}/{postgres_db}/{asset_schema}/{raw_ai_events_table}"
+)
+
+ENRICHED_AI_EVENTS_ASSET = Asset(
+    f"postgres://{postgres_host}/{postgres_db}/{asset_schema}/ai_events"
 )
 
 
@@ -36,6 +40,14 @@ def ai_tracker_phase1_ingest():
     def ingest_source(source: str) -> dict:
         return run_source_ingestion(source=source)
 
-    ingest_source.expand(source=ALL_PHASE1_SOURCES)
+    @task(pool="web_scraping_pool", outlets=[ENRICHED_AI_EVENTS_ASSET])
+    def enrich_raw_events() -> dict:
+        from tracker.embeddings.ollama import OllamaEmbedder
+
+        embedder = OllamaEmbedder()
+        return run_enrichment(embed=embedder, batch_size=500)
+
+    ingest_tasks = ingest_source.expand(source=ALL_PHASE1_SOURCES)
+    ingest_tasks >> enrich_raw_events()
 
 ai_tracker_phase1_ingest()

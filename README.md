@@ -23,6 +23,23 @@ Collection flow per DAG run:
 2. OpenAI and Google DeepMind RSS feeds are fetched and parsed.
 3. Raw events are upserted into `raw_events` keyed by `canonical_url` (idempotent).
 4. The `raw_events` table is emitted as an Airflow dataset asset for downstream consumers.
+5. The `enrich_raw_events` task reads new raw events, cleans content with trafilatura,
+   categorizes/scores them, embeds via Ollama (`nomic-embed-text`), and upserts into
+   `ai_events`.
+
+Airflow services:
+
+| Service | Role |
+|---------|------|
+| `airflow-apiserver` | REST API and web UI (port 8080) |
+| `airflow-scheduler` | Schedules and dispatches task instances |
+| `airflow-worker` | Executes ingestion + enrichment tasks via Celery |
+| `airflow-dag-processor` | Parses DAG files |
+| `airflow-triggerer` | Runs deferrable operators |
+| `airflow-init` | One-shot: DB migration, SQL migrations, pool creation |
+| `ollama` | Local embedding server (port 11434) |
+| `postgres` | pgvector-enabled Postgres (port 5433 → 5432) |
+| `redis` | Celery message broker (port 6379) |
 
 
 ## Sources
@@ -32,8 +49,27 @@ Collection flow per DAG run:
 | `hacker_news` | `community` | Algolia API | `hn.algolia.com/api/v1/search_by_date`, query for AI labs/LLMs, min 25 points |
 | `openai_news` | `openai` | RSS feed | `https://openai.com/news/rss.xml` |
 | `google_deepmind` | `google_deepmind` | RSS feed | `https://deepmind.google/blog/feed/basic/` |
+| `liquid_ai` | `liquid_ai` | RSS feed (Substack) | `https://liquidai.substack.com/feed.xml` (Liquid AI blog has no native RSS) |
 
 Feed collection retries HTTP errors with exponential backoff (3 attempts).
+
+## Enrichment Phase
+
+The DAG includes a second task, `enrich_raw_events`, that runs downstream of all
+ingestion tasks. It reads raw events that have no matching `ai_events` row and:
+
+1. **Extracts content** — fetches each `canonical_url` and cleans the main article
+   body with trafilatura (`tracker/extractors/content.py`).
+2. **Categorizes** — heuristic keyword-based tagging (`models`, `engineering`,
+   `research`, `news`, `uncategorized`).
+3. **Scores impact** — heuristic 1–10 score based on title keywords and HN points.
+4. **Embeds** — passes the summary through Ollama's `nomic-embed-text` model
+   into a 768-dim vector stored in `ai_events.embedding` (pgvector).
+5. **Upserts** — idempotently inserts/updates `ai_events` keyed by `canonical_url`.
+
+The embedder is pluggable via `tracker/pipeline/enrich.py:run_enrichment(embed=...)`.
+The DAG wires in `tracker/embeddings/ollama.py:OllamaEmbedder`, which calls the
+Ollama `/api/embed` endpoint over HTTP.
 
 ## Prerequisites
 
@@ -41,12 +77,14 @@ Feed collection retries HTTP errors with exponential backoff (3 attempts).
 - Docker and Docker Compose (recommended for the full stack)
 - PostgreSQL 17 with the `pgvector` extension (if not using Docker)
 - Redis 7.2 (if not using Docker)
+- Ollama (bundled as a service in `docker-compose.yml`; the `nomic-embed-text`
+  model is pulled automatically by the `ollama-init` service on stack startup)
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/peterwade153/Intel-tracker
 cd Intel-tracker
 
 # Create and activate a virtual environment
@@ -91,6 +129,9 @@ docker compose run --rm airflow-init
 ```
 
 This runs `airflow db migrate`, `python -m tracker.storage.migrate`, and creates the `web_scraping_pool`.
+
+The `ollama-init` service starts automatically with `docker compose up` and pulls
+the `nomic-embed-text` model into Ollama before enrichment tasks run.
 
 Open the Airflow UI at `http://localhost:8080`.
 
@@ -142,6 +183,19 @@ pip install <package>
 ```
 
 Then add it to `[project.dependencies]` in `pyproject.toml`.
+
+### Embedding model
+
+The `ai_events.embedding` column is `vector(768)`. The DAG wires in
+`tracker/embeddings/ollama.py:OllamaEmbedder`, which calls Ollama's
+`/api/embed` endpoint with the `nomic-embed-text` model (768-dimensional output,
+no API key required, runs locally via the `ollama` service in `docker-compose.yml`).
+
+To use a different model, set `OLLAMA_EMBED_MODEL` in `.env` and add a new
+migration in `sql/` (e.g. `003_alter_embedding_dimension.sql`) with an
+`ALTER TABLE ai_events ALTER COLUMN embedding TYPE vector(<dims>)` statement.
+Never modify `001_init.sql` after it has been applied — the migration runner
+verifies checksums and will reject changes.
 
 ## Testing
 
