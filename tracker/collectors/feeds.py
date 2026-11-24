@@ -9,8 +9,9 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from tracker.storage.db import RawEvent
 
 FEED_SOURCES: dict[str, tuple[str, str]] = {
-    "openai_news": ("openai", "https://openai.com/news/rss.xml"), #
+    "openai_news": ("openai", "https://openai.com/news/rss.xml"),
     "google_deepmind": ("google_deepmind", "https://deepmind.google/blog/feed/basic/"),
+    "liquid_ai": ("liquid_ai", "https://liquidai.substack.com/feed.xml"),
 }
 
 

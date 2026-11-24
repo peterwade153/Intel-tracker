@@ -34,3 +34,8 @@ def get_tracker_psycopg_dsn(database_url: str | None = None) -> str:
     """Return a standard libpq/psycopg DSN without SQLAlchemy driver prefix."""
     url = get_tracker_database_url(database_url)
     return url.replace("postgresql+psycopg://", "postgresql://", 1)
+
+
+def get_env(key: str, default: str = "") -> str:
+    """Return an environment variable, falling back to ``default``."""
+    return os.environ.get(key, default).strip()
