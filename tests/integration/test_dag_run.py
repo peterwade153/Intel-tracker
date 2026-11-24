@@ -7,14 +7,14 @@ DAG_ID = "ai_tracker_phase1_ingest"
 
 def test_dag_loads_without_errors():
     """DAG file parses and registers without import errors."""
-    dag_bag = DagBag(dag_folder="dags", include_examples=False)
+    dag_bag = DagBag(dag_folder="dags")
     assert dag_bag.dags.get(DAG_ID) is not None
     assert len(dag_bag.import_errors) == 0, f"DAG import errors: {dag_bag.import_errors}"
 
 
 def test_dag_has_expected_tasks():
     """DAG contains ingest_source (mapped) and enrich_raw_events tasks."""
-    dag_bag = DagBag(dag_folder="dags", include_examples=False)
+    dag_bag = DagBag(dag_folder="dags")
     dag = dag_bag.dags.get(DAG_ID)
     assert dag is not None
 
@@ -25,7 +25,7 @@ def test_dag_has_expected_tasks():
 
 def test_dag_has_outlet_assets():
     """DAG defines outlet assets for raw_events and ai_events."""
-    dag_bag = DagBag(dag_folder="dags", include_examples=False)
+    dag_bag = DagBag(dag_folder="dags")
     dag = dag_bag.dags.get(DAG_ID)
     assert dag is not None
 
@@ -40,7 +40,7 @@ def test_dag_has_outlet_assets():
 
 def test_dag_schedule_is_daily():
     """DAG schedule defaults to daily 9 AM UTC."""
-    dag_bag = DagBag(dag_folder="dags", include_examples=False)
+    dag_bag = DagBag(dag_folder="dags")
     dag = dag_bag.dags.get(DAG_ID)
     assert dag is not None
     assert dag.schedule_interval == "0 9 * * *"

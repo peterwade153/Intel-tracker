@@ -4,7 +4,7 @@ import os
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -22,7 +22,18 @@ def db_engine():
 
 @pytest.fixture
 def clean_tables(db_engine):
-    """Truncate test tables before each test to ensure isolation."""
+    """Truncate test tables before each test to ensure isolation.
+
+    Creates tables via SQL migrations if they don't exist yet (e.g. first
+    test run on a fresh database).
+    """
+    from sqlalchemy import text
+
+    from tracker.storage.migrate import apply_sql_migrations
+
+    # Ensure tables exist before truncating
+    apply_sql_migrations("sql", db_engine.url.replace("+psycopg", ""))
+
     with db_engine.begin() as conn:
         conn.execute(text("DELETE FROM ai_events"))
         conn.execute(text("DELETE FROM raw_events"))
