@@ -67,7 +67,7 @@ def collect_hacker_news(
                         source="hacker_news",
                         lab="community",
                         external_id=str(object_id) if object_id else None,
-                        canonical_url=url,
+                        canonical_url=url,  # type: ignore[arg-type]  # Pydantic coerces str to HttpUrl
                         title=title,
                         raw_summary=f"HN points: {hit.get('points', 0)} | comments: {hit.get('num_comments', 0)}",
                         published_at=published_at,

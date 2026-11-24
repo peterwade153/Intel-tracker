@@ -34,7 +34,7 @@ def impact_score(raw_event: RawEvent) -> int:
         score += 3
     if any(k in text for k in medium_signal):
         score += 1
-    if raw_event.source == "hacker_news":
+    if raw_event.source == "hacker_news" and raw_event.raw_summary:
         try:
             points = int(raw_event.raw_summary.split("points: ")[1].split(" ")[0])
             if points >= 100:
@@ -58,7 +58,7 @@ def enrich_event(raw_event: RawEvent, raw_event_id: int, embed: Embedder) -> Enr
         raw_event_id=raw_event_id,
         source=raw_event.source,
         lab=raw_event.lab,
-        canonical_url=str(raw_event.canonical_url),
+        canonical_url=raw_event.canonical_url,
         title=raw_event.title.strip(),
         category=category,
         summary=summary,
