@@ -69,7 +69,7 @@ jobs:
       - name: Run pytest
         run: pytest
         env:
-          TEST_DATABASE_URL: postgresql+psycopg://airflow@localhost:5432/ai_tracker_test
+          TRACKER_DATABASE_URL: postgresql+psycopg://airflow@localhost:5432/ai_tracker_test
 
   typecheck:
     name: Type Check

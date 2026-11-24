@@ -8,7 +8,10 @@ from sqlalchemy import create_engine
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+psycopg://airflow:airflow@localhost:5433/ai_tracker_test",
+    os.environ.get(
+        "TRACKER_DATABASE_URL",
+        "postgresql+psycopg://airflow:airflow@localhost:5433/ai_tracker_test",
+    ),
 )
 
 
