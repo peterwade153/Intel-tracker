@@ -32,7 +32,7 @@ def clean_tables(db_engine):
     from tracker.storage.migrate import apply_sql_migrations
 
     # Ensure tables exist before truncating
-    apply_sql_migrations("sql", db_engine.url.replace("+psycopg", ""))
+    apply_sql_migrations("sql", str(db_engine.url).replace("+psycopg", ""))
 
     with db_engine.begin() as conn:
         conn.execute(text("DELETE FROM ai_events"))

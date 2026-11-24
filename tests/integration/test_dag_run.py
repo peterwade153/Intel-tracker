@@ -43,4 +43,4 @@ def test_dag_schedule_is_daily():
     dag_bag = DagBag(dag_folder="dags")
     dag = dag_bag.dags.get(DAG_ID)
     assert dag is not None
-    assert dag.schedule_interval == "0 9 * * *"
+    assert dag.schedule == "0 9 * * *"
