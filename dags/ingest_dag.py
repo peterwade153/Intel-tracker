@@ -23,7 +23,7 @@ ENRICHED_AI_EVENTS_ASSET = Asset(
 )
 
 
-@dag(
+@dag(  # type: ignore[call-overload]  # Airflow 3.x dag() overload mismatch with env-var schedule
     dag_id="ai_tracker_phase1_ingest",
     schedule=dag_schedule,
     start_date=pendulum.parse(dag_start_date, tz="UTC"),

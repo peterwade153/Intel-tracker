@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -58,16 +59,14 @@ def collect_hacker_news(
                 created_at = hit.get("created_at")
                 published_at = None
                 if created_at:
-                    published_at = datetime.fromisoformat(
-                        created_at.replace("Z", "+00:00")
-                    ).astimezone(timezone.utc)
+                    published_at = datetime.fromisoformat(created_at).astimezone(UTC)
 
                 events.append(
                     RawEvent(
                         source="hacker_news",
                         lab="community",
                         external_id=str(object_id) if object_id else None,
-                        canonical_url=url,
+                        canonical_url=url,  # type: ignore[arg-type]  # Pydantic coerces str to HttpUrl
                         title=title,
                         raw_summary=f"HN points: {hit.get('points', 0)} | comments: {hit.get('num_comments', 0)}",
                         published_at=published_at,

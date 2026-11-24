@@ -28,7 +28,7 @@ def extract_content(html: str, url: str) -> str | None:
         return None
     try:
         return trafilatura.extract(html, url=url)
-    except Exception:
+    except Exception:  # noqa: BLE001 - graceful fallback for dead URLs
         return None
 
 
@@ -40,6 +40,6 @@ def extract_and_clean(url: str) -> str | None:
     """
     try:
         html = fetch_html(url)
-    except Exception:
+    except Exception:  # noqa: BLE001 - graceful fallback for dead URLs
         return None
     return extract_content(html, url)
