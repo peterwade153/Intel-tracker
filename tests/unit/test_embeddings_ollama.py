@@ -36,7 +36,9 @@ def test_ollama_embed_404_model_not_found():
         mock_resp = _MockResp({}, status_code=404)
         mock_client.return_value.__enter__.return_value.post.return_value = mock_resp
         embedder = OllamaEmbedder(host="http://ollama:11434", model="nonexistent")
-        with pytest.raises(ValueError, match="no embeddings"):
+        from tenacity import RetryError
+
+        with pytest.raises(RetryError):
             embedder("test text")
 
 

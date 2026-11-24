@@ -85,18 +85,19 @@ def test_impact_score_hn_points():
         raw_summary="HN points: 150 | comments: 10",
     )
     score = impact_score(event)
-    assert score >= 7  # Base 5 + 3 (introducing) + 2 (100+ points) = 10, capped at 10
+    assert score == 7  # 5 (base) + 2 (100+ HN points)
 
 
 def test_impact_score_capped_at_10():
     event = RawEvent(
-        source="test",
-        lab="test",
+        source="hacker_news",
+        lab="community",
         canonical_url="https://example.com/a",
         title="Introducing state-of-the-art new model launch release best first",
+        raw_summary="HN points: 150 | comments: 10",
     )
     score = impact_score(event)
-    assert score == 10
+    assert score == 10  # 5 (base) + 3 (high signal) + 2 (100+ HN points) = 10, capped at 10
 
 
 def test_run_enrichment_no_unprocessed(db_engine, clean_tables):

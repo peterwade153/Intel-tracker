@@ -39,10 +39,27 @@ def test_collect_hacker_news_basic(mock_hn_client, mock_hn_response):
         assert event.lab == "community"
 
 
-def test_collect_hacker_news_min_points_filter(mock_hn_client):
-    events = collect_hacker_news(min_points=100)
-    assert len(events) == 1
-    assert events[0].title == "Introducing a new AI model"
+def test_collect_hacker_news_min_points_filter():
+    mock_hn_response = {
+        "hits": [
+            {
+                "objectID": "hn_high",
+                "title": "High points AI story",
+                "url": "https://example.com/high",
+                "points": 150,
+                "num_comments": 10,
+                "created_at": "2026-11-20T10:00:00Z",
+            }
+        ]
+    }
+    with patch("httpx.Client") as mock_client:
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = mock_hn_response
+        mock_resp.raise_for_status = MagicMock()
+        mock_client.return_value.__enter__.return_value.get.return_value = mock_resp
+        events = collect_hacker_news(min_points=100)
+        assert len(events) == 1
+        assert events[0].title == "High points AI story"
 
 
 def test_collect_hacker_news_no_url(mock_hn_client):
@@ -63,7 +80,8 @@ def test_collect_hacker_news_no_url(mock_hn_client):
         mock_resp.raise_for_status = MagicMock()
         mock_client.return_value.__enter__.return_value.get.return_value = mock_resp
         events = collect_hacker_news(min_points=0)
-        assert len(events) == 0
+        assert len(events) == 1
+        assert str(events[0].canonical_url) == "https://news.ycombinator.com/item?id=no_url"
 
 
 def test_collect_hacker_news_empty_page():

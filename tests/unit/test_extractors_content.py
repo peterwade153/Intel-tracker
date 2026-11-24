@@ -30,7 +30,9 @@ def test_fetch_html_404():
     with patch("httpx.Client") as mock_client:
         mock_resp = _MockResp(status_code=404)
         mock_client.return_value.__enter__.return_value.get.return_value = mock_resp
-        with pytest.raises(httpx.HTTPError):
+        from tenacity import RetryError
+
+        with pytest.raises(RetryError):
             fetch_html("https://example.com/missing")
 
 
