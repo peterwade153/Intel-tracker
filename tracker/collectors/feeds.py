@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+
 import feedparser  # type: ignore[import-untyped]  # feedparser has no type stubs
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -22,8 +23,11 @@ def _parse_published(entry: dict) -> datetime | None:
             continue
         try:
             dt = parsedate_to_datetime(raw)
-            return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-        except Exception:
+            return dt.astimezone(UTC) if dt.tzinfo else dt.replace(tzinfo=UTC)
+        except Exception as exc:  # noqa: BLE001 - intentional blind catch for date parsing fallback
+            import logging
+
+            logging.getLogger(__name__).warning("Failed to parse date %s: %s", raw, exc)
             continue
     return None
 

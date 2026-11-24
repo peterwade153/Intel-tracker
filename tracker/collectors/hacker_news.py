@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -58,9 +59,7 @@ def collect_hacker_news(
                 created_at = hit.get("created_at")
                 published_at = None
                 if created_at:
-                    published_at = datetime.fromisoformat(
-                        created_at.replace("Z", "+00:00")
-                    ).astimezone(timezone.utc)
+                    published_at = datetime.fromisoformat(created_at).astimezone(UTC)
 
                 events.append(
                     RawEvent(
