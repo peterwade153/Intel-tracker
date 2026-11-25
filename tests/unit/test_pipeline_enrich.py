@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from tracker.pipeline.enrich import categorize, impact_score, run_enrichment
 from tracker.storage.db import RawEvent
 
@@ -100,6 +102,7 @@ def test_impact_score_capped_at_10():
     assert score == 10  # 5 (base) + 3 (high signal) + 2 (100+ HN points) = 10, capped at 10
 
 
+@pytest.mark.integration
 def test_run_enrichment_no_unprocessed(db_engine, clean_tables):
     result = run_enrichment(embed=lambda t: [0.1, 0.2, 0.3], batch_size=100)
     assert result == {"received": 0, "enriched": 0}

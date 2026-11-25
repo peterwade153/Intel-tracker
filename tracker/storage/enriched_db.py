@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from tracker.config import get_vector_dim
+
 
 class EnrichedEvent(BaseModel):
     raw_event_id: int
@@ -18,7 +20,7 @@ class EnrichedEvent(BaseModel):
     impact_score: int | None = None
     published_at: datetime | None = None
     enriched_at: datetime
-    embedding: list[float] = Field(default_factory=lambda: [0.0] * 768)
+    embedding: list[float] = Field(default_factory=lambda: [0.0] * get_vector_dim())
 
 
 def upsert_enriched_events(engine: Engine, events: list[EnrichedEvent], batch_size: int = 100) -> dict[str, int]:
@@ -64,7 +66,7 @@ def upsert_enriched_events(engine: Engine, events: list[EnrichedEvent], batch_si
             "impact_score": e.impact_score,
             "published_at": e.published_at,
             "enriched_at": e.enriched_at,
-            "embedding": f"[{','.join(str(v) for v in e.embedding)}]",
+            "embedding": e.embedding,
         })
 
     upserted = 0

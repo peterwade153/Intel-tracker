@@ -19,6 +19,8 @@ class _MockEntry:
 class _MockFeed:
     def __init__(self, entries):
         self.entries = [_MockEntry(e) for e in entries]
+        self.bozo = False
+        self.bozo_exception = None
 
 
 @pytest.fixture
@@ -49,6 +51,7 @@ def mock_rss_response(mock_rss_feed):
         with patch("httpx.Client") as mock_client:
             mock_resp = MagicMock()
             mock_resp.text = mock_rss_feed
+            mock_resp.status_code = 200
             mock_resp.raise_for_status = MagicMock()
             mock_client.return_value.__enter__.return_value.get.return_value = mock_resp
             yield
@@ -95,8 +98,10 @@ def test_collect_feed_http_retry(mock_rss_feed):
         with patch("httpx.Client") as mock_client:
             # First call raises, second succeeds
             mock_resp_fail = MagicMock()
+            mock_resp_fail.status_code = 503
             mock_resp_fail.raise_for_status.side_effect = httpx.HTTPError("503")
             mock_resp_ok = MagicMock()
+            mock_resp_ok.status_code = 200
             mock_resp_ok.text = mock_rss_feed
             mock_resp_ok.raise_for_status = MagicMock()
             mock_client.return_value.__enter__.return_value.get.side_effect = [

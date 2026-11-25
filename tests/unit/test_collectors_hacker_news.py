@@ -2,23 +2,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import httpx
 import pytest
 
 from tracker.collectors.hacker_news import collect_hacker_news
-
-
-class _MockResp:
-    def __init__(self, json_data, status_code=200):
-        self._json = json_data
-        self.status_code = status_code
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise httpx.HTTPError(f"{self.status_code}")
-
-    def json(self):
-        return self._json
 
 
 @pytest.fixture
@@ -62,7 +48,7 @@ def test_collect_hacker_news_min_points_filter():
         assert events[0].title == "High points AI story"
 
 
-def test_collect_hacker_news_no_url(mock_hn_client):
+def test_collect_hacker_news_no_url():
     mock_hn_response = {
         "hits": [
             {
