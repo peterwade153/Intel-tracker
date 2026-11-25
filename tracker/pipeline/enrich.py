@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 
+from tracker.config import get_enrich_max_iterations, get_vector_dim
 from tracker.extractors.content import extract_and_clean
 from tracker.storage.db import RawEvent, get_engine
 from tracker.storage.enriched_db import EnrichedEvent, upsert_enriched_events
+
+logger = logging.getLogger(__name__)
 
 Embedder = Callable[[str], list[float]]
 
@@ -52,7 +57,15 @@ def enrich_event(raw_event: RawEvent, raw_event_id: int, embed: Embedder) -> Enr
     summary = content[:2000] if content else raw_event.raw_summary or ""
     category = categorize(raw_event)
     score = impact_score(raw_event)
-    embedding = embed(summary) if summary else [0.0] * 768
+    if summary:
+        embedding = embed(summary)
+    else:
+        logger.warning(
+            "No content or summary for raw_event_id=%s (source=%s); using zero vector",
+            raw_event_id,
+            raw_event.source,
+        )
+        embedding = [0.0] * get_vector_dim()
 
     return EnrichedEvent(
         raw_event_id=raw_event_id,
@@ -75,8 +88,20 @@ def run_enrichment(embed: Embedder, batch_size: int = 100, max_iterations: int =
     Loops over batches until no unprocessed records remain, capped at
     ``max_iterations`` to prevent runaway tasks. Each iteration fetches up to
     ``batch_size`` rows, enriches them, and upserts to ``ai_events``.
+
+    The ``max_iterations`` cap can be overridden via the
+    ``AI_TRACKER_ENRICH_MAX_ITERATIONS`` environment variable.
     """
     from sqlalchemy import text
+
+    try:
+        max_iterations = get_enrich_max_iterations()
+    except ValueError:
+        max_iterations = 50
+        logger.warning(
+            "Invalid AI_TRACKER_ENRICH_MAX_ITERATIONS; using default %d",
+            max_iterations,
+        )
 
     engine = get_engine()
     sql = text(
@@ -94,14 +119,17 @@ def run_enrichment(embed: Embedder, batch_size: int = 100, max_iterations: int =
     total_received = 0
     total_enriched = 0
 
-    for _ in range(max_iterations):
+    for iteration in range(max_iterations):
         with engine.begin() as conn:
             rows = conn.execute(sql, {"limit": batch_size}).mappings().all()
 
         if not rows:
+            logger.info("Enrichment: no unprocessed raw events after %d iteration(s)", iteration)
             break
 
-        enriched_events = []
+        logger.info("Enrichment: processing batch of %d raw events (iteration %d)", len(rows), iteration)
+
+        raw_events = []
         for row in rows:
             raw_event = RawEvent(
                 source=row["source"],
@@ -114,10 +142,28 @@ def run_enrichment(embed: Embedder, batch_size: int = 100, max_iterations: int =
                 published_at=row["published_at"],
                 payload=row["payload"] if isinstance(row["payload"], dict) else {},
             )
-            enriched_events.append(enrich_event(raw_event, row["id"], embed))
+            raw_events.append(raw_event)
 
-        stats = upsert_enriched_events(engine, enriched_events, batch_size=batch_size)
-        total_received += len(enriched_events)
+        enriched_events: list[EnrichedEvent | None] = [None] * len(raw_events)
+        with ThreadPoolExecutor() as executor:
+            future_to_idx = {
+                executor.submit(enrich_event, raw_event, row["id"], embed): i
+                for i, (raw_event, row) in enumerate(zip(raw_events, rows))
+            }
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                enriched_events[idx] = future.result()
+
+        valid_events = [e for e in enriched_events if e is not None]
+        stats = upsert_enriched_events(engine, valid_events, batch_size=batch_size)
+        total_received += len(valid_events)
         total_enriched += stats["upserted"]
+
+        logger.info(
+            "Enrichment: upserted %d/%d events in batch (iteration %d)",
+            stats["upserted"],
+            len(valid_events),
+            iteration,
+        )
 
     return {"received": total_received, "enriched": total_enriched}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
@@ -8,6 +9,8 @@ import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from tracker.storage.db import RawEvent
+
+log = logging.getLogger(__name__)
 
 FEED_SOURCES: dict[str, tuple[str, str]] = {
     "openai_news": ("openai", "https://openai.com/news/rss.xml"),
@@ -25,9 +28,7 @@ def _parse_published(entry: dict) -> datetime | None:
             dt = parsedate_to_datetime(raw)
             return dt.astimezone(UTC) if dt.tzinfo else dt.replace(tzinfo=UTC)
         except Exception as exc:  # noqa: BLE001 - intentional blind catch for date parsing fallback
-            import logging
-
-            logging.getLogger(__name__).warning("Failed to parse date %s: %s", raw, exc)
+            log.warning("Failed to parse date %s: %s", raw, exc)
             continue
     return None
 
@@ -36,11 +37,15 @@ def _parse_published(entry: dict) -> datetime | None:
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=15),
     retry=retry_if_exception_type((httpx.HTTPError, TimeoutError)),
+    reraise=True,
 )
 def _fetch_xml(url: str) -> str:
     headers = {"User-Agent": "AILabTracker/0.1"}
     with httpx.Client(timeout=20.0, follow_redirects=True, headers=headers) as client:
         resp = client.get(url)
+        # Don't retry client errors (4xx) - they won't succeed on retry
+        if 400 <= resp.status_code < 500:
+            resp.raise_for_status()
         resp.raise_for_status()
         return resp.text
 
@@ -51,6 +56,9 @@ def collect_feed(source_key: str) -> list[RawEvent]:
     lab, url = FEED_SOURCES[source_key]
     xml_text = _fetch_xml(url)
     parsed = feedparser.parse(xml_text)
+
+    if parsed.bozo:
+        log.warning("Feed parse warning for %s: %s", url, parsed.bozo_exception)
 
     events: list[RawEvent] = []
     for entry in parsed.entries:

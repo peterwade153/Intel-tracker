@@ -39,3 +39,22 @@ def get_tracker_psycopg_dsn(database_url: str | None = None) -> str:
 def get_env(key: str, default: str = "") -> str:
     """Return an environment variable, falling back to ``default``."""
     return os.environ.get(key, default).strip()
+
+
+def get_vector_dim() -> int:
+    """Return the vector embedding dimension from env, defaulting to 768.
+
+    Reads ``AI_TRACKER_VECTOR_DIM``. Used to size embedding columns and
+    zero-vector fallbacks so the dimension stays consistent with the
+    embedding model output (e.g. 768 for nomic-embed-text).
+    """
+    return int(get_env("AI_TRACKER_VECTOR_DIM", "768"))
+
+
+def get_enrich_max_iterations() -> int:
+    """Return the max enrichment iterations from env, defaulting to 50.
+
+    Reads ``AI_TRACKER_ENRICH_MAX_ITERATIONS``. Caps the number of
+    enrichment batch loops in ``run_enrichment`` to prevent runaway tasks.
+    """
+    return int(get_env("AI_TRACKER_ENRICH_MAX_ITERATIONS", "50"))
